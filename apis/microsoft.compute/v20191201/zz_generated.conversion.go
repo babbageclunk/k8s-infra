@@ -1259,7 +1259,17 @@ func Convert_v1_VirtualMachineIdentity_To_v20191201_VirtualMachineIdentity(in *v
 
 func autoConvert_v20191201_VirtualMachineList_To_v1_VirtualMachineList(in *VirtualMachineList, out *v1.VirtualMachineList, s conversion.Scope) error {
 	out.ListMeta = in.ListMeta
-	out.Items = *(*[]v1.VirtualMachine)(unsafe.Pointer(&in.Items))
+	if in.Items != nil {
+		in, out := &in.Items, &out.Items
+		*out = make([]v1.VirtualMachine, len(*in))
+		for i := range *in {
+			if err := Convert_v20191201_VirtualMachine_To_v1_VirtualMachine(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Items = nil
+	}
 	return nil
 }
 
@@ -1270,7 +1280,17 @@ func Convert_v20191201_VirtualMachineList_To_v1_VirtualMachineList(in *VirtualMa
 
 func autoConvert_v1_VirtualMachineList_To_v20191201_VirtualMachineList(in *v1.VirtualMachineList, out *VirtualMachineList, s conversion.Scope) error {
 	out.ListMeta = in.ListMeta
-	out.Items = *(*[]VirtualMachine)(unsafe.Pointer(&in.Items))
+	if in.Items != nil {
+		in, out := &in.Items, &out.Items
+		*out = make([]VirtualMachine, len(*in))
+		for i := range *in {
+			if err := Convert_v1_VirtualMachine_To_v20191201_VirtualMachine(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Items = nil
+	}
 	return nil
 }
 
@@ -1896,7 +1916,6 @@ func Convert_v1_VirtualMachineScaleSetVMProfile_To_v20191201_VirtualMachineScale
 }
 
 func autoConvert_v20191201_VirtualMachineSpec_To_v1_VirtualMachineSpec(in *VirtualMachineSpec, out *v1.VirtualMachineSpec, s conversion.Scope) error {
-	// INFO: in.APIVersion opted out of conversion generation
 	out.ResourceGroupRef = (*corev1.KnownTypeReference)(unsafe.Pointer(in.ResourceGroupRef))
 	out.Plan = (*v1.Plan)(unsafe.Pointer(in.Plan))
 	out.Zones = (*[]string)(unsafe.Pointer(in.Zones))
@@ -1931,7 +1950,6 @@ func Convert_v1_VirtualMachineSpec_To_v20191201_VirtualMachineSpec(in *v1.Virtua
 
 func autoConvert_v20191201_VirtualMachineStatus_To_v1_VirtualMachineStatus(in *VirtualMachineStatus, out *v1.VirtualMachineStatus, s conversion.Scope) error {
 	out.ID = in.ID
-	// INFO: in.DeploymentID opted out of conversion generation
 	out.ProvisioningState = in.ProvisioningState
 	return nil
 }
