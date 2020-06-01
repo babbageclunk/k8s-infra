@@ -126,6 +126,18 @@ func gatherStruct(t reflect.Type) ([]TypeReferenceLocation, error) {
 				IsSlice:           isSlice,
 				IsOwned:           isOwned,
 			})
+		case isSlice:
+			references, err := getResourceReferences(structField.Type.Elem())
+			if err != nil {
+				return refs, err
+			}
+
+			for i := range references {
+				thisPath := fmt.Sprintf("%s[]", strings.Split(jsonTag, ",")[0])
+				references[i].Path = append([]string{thisPath}, references[i].Path...)
+			}
+
+			refs = append(refs, references...)
 		default:
 			references, err := getResourceReferences(structField.Type)
 			if err != nil {
@@ -148,4 +160,18 @@ func (trl *TypeReferenceLocation) JSONFields() []string {
 
 func (trl *TypeReferenceLocation) TemplateFields() []string {
 	return append(trl.Path, trl.TemplateFieldName)
+}
+
+// WithinSlice returns true when the ref location is nested within a slice somewhere in it's path
+func (trl *TypeReferenceLocation) WithinSlice() bool {
+	for _, segment := range trl.Path {
+		if PathSegmentIsSlice(segment) {
+			return true
+		}
+	}
+	return false
+}
+
+func PathSegmentIsSlice(segment string) bool {
+	return strings.HasSuffix(segment, "[]")
 }

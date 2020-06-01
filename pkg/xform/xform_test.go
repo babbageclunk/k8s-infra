@@ -180,6 +180,95 @@ func TestARMConverter_ToResource(t *testing.T) {
 				g.Expect(vmWithNetworkInterfaceEmbedded.APIVersion).To(gomega.Equal(vm.Spec.APIVersion))
 			},
 		},
+		{
+			Name: "NetworkInterfaceWithInterfaceConfigurationsAndSubnetRefs",
+			Setup: func(g *gomega.WithT, mc *MockClient) azcorev1.MetaObject {
+				randomName := test.RandomName("foo", 10)
+				nn := &client.ObjectKey{
+					Namespace: "default",
+					Name:      randomName,
+				}
+
+				group := newResourceGroup(nn)
+				subnet0 := newSubnet(nn, 0)
+				subnet1 := newSubnet(nn, 1)
+				nic := newNetworkInterface(nn)
+				nic.Spec.Properties.IPConfigurations = []microsoftnetworkv1.NetworkInterfaceIPConfigurationSpec{
+					{
+						Name: "config1",
+						Properties: &microsoftnetworkv1.NetworkInterfaceIPConfigurationSpecProperties{
+							Primary: true,
+							SubnetRef: &azcorev1.KnownTypeReference{
+								Name:      subnet0.Name,
+								Namespace: subnet0.Namespace,
+							},
+						},
+					},
+					{
+						Name: "config2",
+						Properties: &microsoftnetworkv1.NetworkInterfaceIPConfigurationSpecProperties{
+							SubnetRef: &azcorev1.KnownTypeReference{
+								Name:      subnet1.Name,
+								Namespace: subnet1.Namespace,
+							},
+						},
+					},
+				}
+
+				nic.Spec.ResourceGroupRef = &azcorev1.KnownTypeReference{
+					Name:      group.Name,
+					Namespace: group.Namespace,
+				}
+
+				for _, subnet := range []*microsoftnetworkv1.Subnet{subnet0, subnet1} {
+					subnet := subnet
+					mc.On("Get", mock.Anything, client.ObjectKey{
+						Namespace: subnet.Namespace,
+						Name:      subnet.Name,
+					}, new(microsoftnetworkv1.Subnet)).Run(func(args mock.Arguments) {
+						dst := args.Get(2).(*microsoftnetworkv1.Subnet)
+						subnet.DeepCopyInto(dst)
+						dst.Status.ID = fmt.Sprintf("subnets/%s", subnet.Name)
+					}).Return(nil)
+				}
+
+				return nic
+			},
+			Expect: func(g *gomega.WithT, metaObject azcorev1.MetaObject, res *zips.Resource) {
+				nic := struct {
+					Name       string
+					Location   string
+					APIVersion string
+					Type       string
+					Properties struct {
+						IPConfigurations []struct {
+							Name       string
+							Properties struct {
+								Primary *bool `json:"primary,omitempty"`
+								Subnet  struct {
+									ID string `json:"id,omitempty"`
+								}
+							} `json:"properties"`
+						} `json:"ipConfigurations"`
+					}
+				}{}
+
+				bits, _ := json.Marshal(res)
+				g.Expect(json.Unmarshal(bits, &nic)).ToNot(gomega.HaveOccurred())
+				g.Expect(nic.Properties.IPConfigurations).ToNot(gomega.BeNil())
+				g.Expect(nic.Properties.IPConfigurations).To(gomega.HaveLen(2))
+				g.Expect(nic.Properties.IPConfigurations[0].Properties.Subnet.ID).To(gomega.ContainSubstring("subnet_0"))
+				g.Expect(nic.Properties.IPConfigurations[0].Properties.Primary).ToNot(gomega.BeNil())
+				g.Expect(*nic.Properties.IPConfigurations[0].Properties.Primary).To(gomega.BeTrue())
+				g.Expect(nic.Properties.IPConfigurations[1].Properties.Subnet.ID).To(gomega.ContainSubstring("subnet_1"))
+				iface, ok := metaObject.(*microsoftnetworkv1.NetworkInterface)
+				g.Expect(ok).To(gomega.BeTrue())
+				g.Expect(nic.Name).To(gomega.Equal(iface.Name))
+				g.Expect(nic.Location).To(gomega.Equal(iface.Spec.Location))
+				g.Expect(nic.Type).To(gomega.Equal(iface.ResourceType()))
+				g.Expect(nic.APIVersion).To(gomega.Equal(iface.Spec.APIVersion))
+			},
+		},
 	}
 
 	scheme := runtime.NewScheme()
@@ -355,6 +444,23 @@ func newVM(nn *client.ObjectKey) *microsoftcomputev1.VirtualMachine {
 			Properties: &microsoftcomputev1.VirtualMachineProperties{
 				NetworkProfile: new(microsoftcomputev1.NetworkProfile),
 			},
+		},
+	}
+}
+
+func newSubnet(nn *client.ObjectKey, index int) *microsoftnetworkv1.Subnet {
+	return &microsoftnetworkv1.Subnet{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Subnet",
+			APIVersion: microsoftnetworkv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s_subnet_%d", nn.Name, index),
+			Namespace: nn.Namespace,
+		},
+		Spec: microsoftnetworkv1.SubnetSpec{
+			APIVersion: "2019-11-01",
+			Properties: microsoftnetworkv1.SubnetProperties{},
 		},
 	}
 }
