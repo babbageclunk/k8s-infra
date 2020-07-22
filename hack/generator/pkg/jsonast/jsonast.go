@@ -376,20 +376,17 @@ func getProperties(ctx context.Context, scanner *SchemaScanner, schema *gojsonsc
 		properties = append(properties, property)
 	}
 
-	// see: https://json-schema.org/understanding-json-schema/reference/object.html#properties
-	if schema.AdditionalProperties == nil {
-		// if not specified, any additional properties are allowed (TODO: tell all Azure teams this fact and get them to update their API definitions)
-		// for now we aren't following the spec 100% as it pollutes the generated code
-		// only generate this property if there are no other properties:
-		if len(properties) == 0 {
-			// TODO: for JSON serialization this needs to be unpacked into "parent"
-			additionalProperties := astmodel.NewPropertyDefinition(
-				"additionalProperties",
-				"additionalProperties",
-				astmodel.NewStringMapType(astmodel.AnyType))
-			properties = append(properties, additionalProperties)
-		}
-	} else if schema.AdditionalProperties != false {
+	// see:
+	// https://json-schema.org/understanding-json-schema/reference/object.html#properties
+	// if not specified, no additional properties are allowed (TODO:
+	// tell all Azure teams this fact and get them to update their API
+	// definitions)
+
+	// This doesn't follow the json-schema spec, but matches how the
+	// json schema is generated from swagger definitions. Otherwise we
+	// have to support map[string]interface{} in our types, which
+	// kubebuilder doesn't handle correctly at the moment.
+	if schema.AdditionalProperties != nil && schema.AdditionalProperties != false {
 		// otherwise, if not false then it is a type for all additional properties
 		// TODO: for JSON serialization this needs to be unpacked into "parent"
 		additionalPropsType, err := scanner.RunHandlerForSchema(ctx, schema.AdditionalProperties.(*gojsonschema.SubSchema))
@@ -397,7 +394,7 @@ func getProperties(ctx context.Context, scanner *SchemaScanner, schema *gojsonsc
 			return nil, err
 		}
 
-		// This can happen if the property type was prune away by a type filter.
+		// This can happen if the property type was pruned away by a type filter.
 		// There are a few options here: We can skip this property entirely, we can emit it
 		// with no type (won't compile), or we can emit with with interface{}.
 		// TODO: Currently setting this to anyType as that's easiest to deal with and will generate
