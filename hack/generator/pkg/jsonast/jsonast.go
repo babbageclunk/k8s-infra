@@ -313,8 +313,10 @@ func generatePropertyDefinitions(ctx context.Context, scanner *SchemaScanner, pr
 
 	propType, err := scanner.RunHandler(ctx, schemaType, prop)
 	if _, ok := err.(*UnknownSchemaError); ok {
-		// if we don't know the type, we still need to provide the property, we will just provide open interface
-		property := astmodel.NewPropertyDefinition(propertyName, prop.Property, astmodel.AnyType)
+		// if we don't know the type, we still need to provide the
+		// property, we will just provide an empty struct.
+
+		property := astmodel.NewPropertyDefinition(propertyName, prop.Property, astmodel.NewObjectType())
 		return property, nil
 	}
 
