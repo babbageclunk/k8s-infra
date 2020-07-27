@@ -302,8 +302,8 @@ func generatePropertyDefinitions(ctx context.Context, scanner *SchemaScanner, pr
 
 	schemaType, err := getSubSchemaType(prop)
 	if _, ok := err.(*UnknownSchemaError); ok {
-		// if we don't know the type, we still need to provide the property, we will just provide open interface
-		property := astmodel.NewPropertyDefinition(propertyName, prop.Property, astmodel.AnyType)
+		// if we don't know the type, we still need to provide the property, we will just provide an empty struct.
+		property := astmodel.NewPropertyDefinition(propertyName, prop.Property, astmodel.NewObjectType())
 		return property, nil
 	}
 
@@ -396,13 +396,17 @@ func getProperties(ctx context.Context, scanner *SchemaScanner, schema *gojsonsc
 			return nil, err
 		}
 
-		// This can happen if the property type was pruned away by a type filter.
-		// There are a few options here: We can skip this property entirely, we can emit it
-		// with no type (won't compile), or we can emit with with interface{}.
-		// TODO: Currently setting this to anyType as that's easiest to deal with and will generate
-		// TODO: a warning during controller-gen
+		// This can happen if the property type was pruned away by a
+		// type filter.  There are a few options here: We can skip
+		// this property entirely, we can emit it with no type (won't
+		// compile), we can emit with with interface{} or we can emit
+		// an empty struct.
+		// TODO: Currently setting this to an empty type with a
+		// warning - this will allow controller-gen to generate copy
+		// code.
 		if additionalPropsType == nil {
-			additionalPropsType = astmodel.AnyType
+			klog.Warningf("Emitting empty struct for additionalProperties in %v", schema.Ref.GetUrl())
+			additionalPropsType = astmodel.NewObjectType()
 		}
 
 		additionalProperties := astmodel.NewPropertyDefinition(
@@ -721,7 +725,7 @@ func arrayHandler(ctx context.Context, scanner *SchemaScanner, schema *gojsonsch
 		// there is no type to the elements, so we must assume interface{}
 		klog.Warningf("Interface assumption unproven for %v\n", schema.Ref.GetUrl())
 
-		return astmodel.NewArrayType(astmodel.AnyType), nil
+		return astmodel.NewArrayType(astmodel.NewObjectType()), nil
 	}
 
 	// get the only child type and wrap it up as an array type:
