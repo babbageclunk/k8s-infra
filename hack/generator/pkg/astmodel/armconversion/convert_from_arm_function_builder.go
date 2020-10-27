@@ -461,8 +461,8 @@ func (builder *convertFromArmBuilder) convertComplexMapProperty(
 	actualDestination := params.destination // TODO: improve name
 	makeMapToken := token.ASSIGN
 	if depth > 0 {
-		actualDestination = elemIdent
-		elemIdent = ast.NewIdent(fmt.Sprintf("elem%d", depth))
+		actualDestination = ast.NewIdent(fmt.Sprintf("elem%d", depth))
+		elemIdent = ast.NewIdent(fmt.Sprintf("elem%d", depth+1))
 		makeMapToken = token.DEFINE
 	}
 
